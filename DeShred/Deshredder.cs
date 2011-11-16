@@ -48,7 +48,7 @@ namespace DeShred
                     {
                         for (int k = 0; k < 359; k++)
                         {
-                            b.SetPixel(j + (i*32), k, segment.GetPixel(j, k));
+                            b.SetPixel(j + (i * 32), k, segment.GetPixel(j, k));
                         }
                     }
                 }
@@ -87,7 +87,7 @@ namespace DeShred
 
         public static Bitmap ImageSegment(int segment)
         {
-            return ImageSegment(segment*32, 32);
+            return ImageSegment(segment * 32, 32);
         }
 
         public static void SortEdges()
@@ -120,17 +120,26 @@ namespace DeShred
         {
             if (EdgeA.Count != EdgeB.Count) throw new Exception("Edge Sample Counts Don't match lengths");
 
-            int aggregate = 0;
+            double aggregate = 0;
 
-            for (int i = 0; i < EdgeA.Count; i = i + 10)
+            for (int i = 1; i < EdgeA.Count - 1; i++)
             {
-                int edgeA = EdgeA[i].ToArgb();
-                int edgeB = EdgeB[i].ToArgb();
+                /*
+                1 2
+                S 4
+                5 6  
+                */
 
-                aggregate += Math.Abs(edgeA - edgeB);
+                int p2 = EdgeB[i - 1].ToArgb();
+                int pS = EdgeA[i].ToArgb();
+                int p4 = EdgeB[i].ToArgb();
+                int p6 = EdgeB[i + 1].ToArgb();
+
+                aggregate += (Math.Abs(pS - p2) + Math.Abs(pS - p4) + Math.Abs(pS - p6)) / 3.0;
+                //aggregate += Math.Abs(pS - p4);
             }
 
-            double score = (double) aggregate/EdgeA.Count;
+            double score = (double)aggregate / EdgeA.Count;
             return score;
         }
 
@@ -151,7 +160,7 @@ namespace DeShred
                 double leftScore = EdgeCompareScore(sEdgeLeft, cEdgeR);
                 double rightScore = EdgeCompareScore(sEdgeRight, cEdgeL);
 
-                var edgeScore = new PixelEdgeScore {Left = leftScore, Right = rightScore};
+                var edgeScore = new PixelEdgeScore { Left = leftScore, Right = rightScore };
                 d.Add(i, edgeScore);
             }
 
