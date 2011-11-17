@@ -20,9 +20,11 @@ namespace DeShred
 
         #region Readonly & Static Fields
 
-        private static readonly List<int> Results = new List<int>();
+        public static int segmentWidth;
 
         private static readonly Dictionary<int, EdgeScore> AllEdgeScores = new Dictionary<int, EdgeScore>();
+        private static readonly List<int> Results = new List<int>();
+        private static readonly object myLock = new object();
 
         #endregion
 
@@ -51,7 +53,7 @@ namespace DeShred
                     {
                         for (int k = 0; k < 359; k++)
                         {
-                            b.SetPixel(j + (i * 32), k, segment.GetPixel(j, k));
+                            b.SetPixel(j + (i*32), k, segment.GetPixel(j, k));
                         }
                     }
                 }
@@ -78,29 +80,56 @@ namespace DeShred
 
             if (EdgeCalculationCompleted != null)
                 EdgeCalculationCompleted(null, new EventArgs());
-
         }
 
-        private static int GetRightNeighbor(int segment)
+        public static void SegmentWidth(Bitmap bitmap, double sensitivity)
         {
-            return AllEdgeScores[segment].BestRightMatchIndex;
-        }
+            int Height = bitmap.Height;
+            int Width = bitmap.Width;
+            var results = new Dictionary<int, double>();
 
-        private static Bitmap ImageSegment(int segment)
-        {
-            return ImageSegment(segment * 32, 32);
+            for (int i = 0; i < Width - 1; i++)
+            {
+                var l = new List<Color>();
+                var r = new List<Color>();
+                for (int j = 0; j < Height; j++)
+                {
+                    l.Add(bitmap.GetPixel(i, j));
+                    r.Add(bitmap.GetPixel(i + 1, j));
+                }
+                results.Add(i, EdgeCompareScore(l, r));
+
+                if (SegmentWidthCalculated != null && i%20 == 0)
+                    SegmentWidthCalculated(null, new EventArgs());
+            }
+
+            double max = results.Max(x => x.Value);
+            double min = results.Min(x => x.Value);
+            double range = max - min;
+            Dictionary<int, double> normalisedResults = results.ToDictionary(x => x.Key, x => (x.Value - min)/range);
+            List<int> edgeIndexes = normalisedResults.Where(x => x.Value > sensitivity).Select(x => x.Key).ToList();
+            IEnumerable<int> columnWidth =
+                edgeIndexes.Where((x, idx) => idx < edgeIndexes.Count - 1 && idx >= 0).Select(
+                    (x, idx) => Math.Abs(edgeIndexes[idx] - edgeIndexes[idx + 1]));
+            var groupedColumnWidth = columnWidth.GroupBy(i => i).Select(g => new {g.Key, Count = g.Count()});
+            segmentWidth =
+                groupedColumnWidth.Where(x => x.Count == groupedColumnWidth.Max(y => y.Count)).Select(x => x.Key).First();
+
+
+            if (SegmentWidthCalculationCompleted != null)
+                SegmentWidthCalculationCompleted(null, new EventArgs());
         }
 
         public static void SortEdges()
         {
             // Find Left Edge - Where X's best left match is Y but X is not Y's best right match
-            var leftEdges = AllEdgeScores
+            IEnumerable<int> leftEdges = AllEdgeScores
                 .Where(x => x.Key != AllEdgeScores[x.Value.BestLeftMatchIndex].BestRightMatchIndex)
                 .Select(x => x.Key);
             Results[0] = leftEdges.FirstOrDefault();
 
             // Find Right Edge - Where X's best right match is Y but X is not Y's best left match
-            var rightEdges = AllEdgeScores
+            IEnumerable<int> rightEdges = AllEdgeScores
                 .Where(x => x.Key != AllEdgeScores[x.Value.BestRightMatchIndex].BestLeftMatchIndex)
                 .Select(x => x.Key);
 
@@ -108,7 +137,7 @@ namespace DeShred
 
             for (int i = 1; i < 19; i++)
             {
-                var rightNeighborIndex = GetRightNeighbor(Results[i - 1]);
+                int rightNeighborIndex = GetRightNeighbor(Results[i - 1]);
                 Results[i] = rightNeighborIndex;
             }
         }
@@ -145,13 +174,12 @@ namespace DeShred
                 aggregate += Math.Abs(pS - p4);
             }
 
-            double score = aggregate / EdgeA.Count;
+            double score = aggregate/EdgeA.Count;
             return score;
         }
-        private static object myLock = new object();
+
         private static Dictionary<int, PixelEdgeScore> GetDualEdgeScores(int source)
         {
-
             Bitmap s = ImageSegment(source);
             List<Color> sEdgeLeft = GetEdge(s, EdgeSide.Left);
             List<Color> sEdgeRight = GetEdge(s, EdgeSide.Right);
@@ -172,14 +200,14 @@ namespace DeShred
                                         double leftScore = EdgeCompareScore(sEdgeLeft, cEdgeR);
                                         double rightScore = EdgeCompareScore(sEdgeRight, cEdgeL);
 
-                                        var edgeScore = new PixelEdgeScore { Left = leftScore, Right = rightScore };
+                                        var edgeScore = new PixelEdgeScore {Left = leftScore, Right = rightScore};
                                         lock (myLock)
                                         {
                                             d.Add(i, edgeScore);
                                         }
                                     });
 
-            var sd = d.OrderBy(x => x.Key).ToDictionary(x => x.Key, x => x.Value);
+            Dictionary<int, PixelEdgeScore> sd = d.OrderBy(x => x.Key).ToDictionary(x => x.Key, x => x.Value);
             return sd;
         }
 
@@ -204,6 +232,16 @@ namespace DeShred
             return l;
         }
 
+        private static int GetRightNeighbor(int segment)
+        {
+            return AllEdgeScores[segment].BestRightMatchIndex;
+        }
+
+        private static Bitmap ImageSegment(int segment)
+        {
+            return ImageSegment(segment*32, 32);
+        }
+
         private static Bitmap ImageSegment(int start, int width)
         {
             var input = new Bitmap(@"unshred.png");
@@ -219,44 +257,6 @@ namespace DeShred
             }
 
             return output;
-        }
-
-        public static int segmentWidth;
-        public static void SegmentWidth(Bitmap bitmap, double sensitivity)
-        {
-            int Height = bitmap.Height;
-            int Width = bitmap.Width;
-            var results = new Dictionary<int, double>();
-
-            for (int i = 0; i < Width - 1; i++)
-            {
-                var l = new List<Color>();
-                var r = new List<Color>();
-                for (int j = 0; j < Height; j++)
-                {
-                    l.Add(bitmap.GetPixel(i, j));
-                    r.Add(bitmap.GetPixel(i + 1, j));
-                }
-                results.Add(i, EdgeCompareScore(l, r));
-
-                if (SegmentWidthCalculated != null && i % 20 == 0)
-                    SegmentWidthCalculated(null, new EventArgs());
-
-
-            }
-
-            var max = results.Max(x => x.Value);
-            var min = results.Min(x => x.Value);
-            var range = max - min;
-            var normalisedResults = results.ToDictionary(x => x.Key, x => (x.Value - min) / range);
-            var edgeIndexes = normalisedResults.Where(x => x.Value > sensitivity).Select(x => x.Key).ToList();
-            var columnWidth = edgeIndexes.Where((x, idx) => idx < edgeIndexes.Count - 1 && idx >= 0).Select((x, idx) => Math.Abs(edgeIndexes[idx] - edgeIndexes[idx + 1]));
-            var groupedColumnWidth = columnWidth.GroupBy(i => i).Select(g => new { g.Key, Count = g.Count() });
-            segmentWidth = groupedColumnWidth.Where(x => x.Count == groupedColumnWidth.Max(y => y.Count)).Select(x => x.Key).First();
-
-
-            if (SegmentWidthCalculationCompleted != null)
-                SegmentWidthCalculationCompleted(null, new EventArgs());
         }
 
         #endregion
