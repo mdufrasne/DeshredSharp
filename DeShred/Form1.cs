@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Drawing;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -11,19 +12,50 @@ namespace DeShred
         public FormDeshred()
         {
             InitializeComponent();
-            btnDeshred.Click += btnDeshred_Click;
+            btnGo.Click += btnGo_Click;
             Deshredder.EdgeCalculated += Deshredder_EdgeCalculated;
             Deshredder.EdgeCalculationCompleted += Deshredder_EdgeCalculationCompleted;
+
+            Deshredder.SegmentWidthCalculationCompleted += Deshredder_SegmentWidthCalculationCompleted;
+            comboBoxTaskSelect.SelectedIndex = 0;
+        }
+
+        private void Deshredder_SegmentWidthCalculationCompleted(object sender, EventArgs e)
+        {
+            CrossThreadGuiDelegate d = CalculationCompleteSegmentWidth;
+            Invoke(d, null);
         }
 
         #endregion
 
         #region Instance Methods
 
+        private void CalculationCompleteSegmentWidth()
+        {
+            var b = new Bitmap(@"unshred.png");
+
+            for (int i = Deshredder.segmentWidth; i < b.Width; i += Deshredder.segmentWidth)
+            {
+                for (int j = 0; j < b.Height; j++)
+                {
+                    if (i > 0) b.SetPixel(i - 1, j, Color.GreenYellow);
+                    b.SetPixel(i, j, Color.GreenYellow);
+                    if (i < Width - 1) b.SetPixel(i + 1, j, Color.GreenYellow);
+                }
+            }
+
+
+            pictureBoxResult.Image = b;
+            btnGo.Text = @"Process";
+            btnGo.Enabled = true;
+            pbDeshred.Value = 0;
+        }
+
         private void CalculationComplete()
         {
-            btnDeshred.Text = @"Deshred";
-            btnDeshred.Enabled = true;
+            pictureBoxResult.Image = Deshredder.OutputBitmap;
+            btnGo.Text = @"Process";
+            btnGo.Enabled = true;
             pbDeshred.Value = 0;
         }
 
@@ -45,18 +77,27 @@ namespace DeShred
         private void Deshredder_EdgeCalculationCompleted(object sender, EventArgs e)
         {
             CrossThreadGuiDelegate d = CalculationComplete;
-            Invoke(d, null);
             Deshredder.SortEdges();
-            pictureBoxResult.Image = Deshredder.OutputBitmap;
+            Invoke(d, null);
         }
 
-        private void btnDeshred_Click(object sender, EventArgs e)
+        private void btnGo_Click(object sender, EventArgs e)
         {
-            var EdgeCalculationThread = new Thread(Deshredder.CalculateEdges);
-            btnDeshred.Text = @"Processing";
-            btnDeshred.Enabled = false;
+            if (comboBoxTaskSelect.SelectedIndex == 0)
+            {
+                var EdgeCalculationThread = new Thread(Deshredder.CalculateEdges);
+                btnGo.Text = @"Processing";
+                btnGo.Enabled = false;
+                EdgeCalculationThread.Start();
+            }
 
-            EdgeCalculationThread.Start();
+            if (comboBoxTaskSelect.SelectedIndex == 1)
+            {
+                var SegmentWidthThread = new Thread(() => Deshredder.SegmentWidth(new Bitmap(@"unshred.png"), .55));
+                btnGo.Text = @"Processing";
+                btnGo.Enabled = false;
+                SegmentWidthThread.Start();
+            }
         }
 
         #endregion
