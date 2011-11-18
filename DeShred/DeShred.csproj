@@ -47,19 +47,19 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Deshredder.cs" />
+    <Compile Include="ShreddedImage.cs" />
     <Compile Include="EdgeScore.cs" />
     <Compile Include="PixelEdgeScore.cs" />
-    <Compile Include="Form1.cs">
+    <Compile Include="FormDeshred.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="Form1.Designer.cs">
-      <DependentUpon>Form1.cs</DependentUpon>
+    <Compile Include="FormDeshred.Designer.cs">
+      <DependentUpon>FormDeshred.cs</DependentUpon>
     </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <EmbeddedResource Include="Form1.resx">
-      <DependentUpon>Form1.cs</DependentUpon>
+    <EmbeddedResource Include="FormDeshred.resx">
+      <DependentUpon>FormDeshred.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
@@ -83,7 +83,6 @@
     </Compile>
   </ItemGroup>
   <ItemGroup>
-    <Content Include="loading.gif" />
     <Content Include="unshred.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
